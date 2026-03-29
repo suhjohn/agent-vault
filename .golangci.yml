@@ -10,7 +10,6 @@ linters:
     - gosec
     - bodyclose
     - gocritic
-
-issues:
-  exclude-dirs:
-    - internal/server/webdist
+  exclusions:
+    paths:
+      - internal/server/webdist
