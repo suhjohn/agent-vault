@@ -61,19 +61,20 @@ changelog:
       - "^ci:"
       - "^chore:"
 
-brews:
-  - repository:
-      owner: Infisical
-      name: homebrew-get-cli
-      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
-    directory: Formula
-    homepage: "https://github.com/Infisical/agent-vault"
-    description: "Open-source credential broker for AI agents"
-    license: "MIT"
-    install: |
-      bin.install "agent-vault"
-    test: |
-      system "#{bin}/agent-vault", "version"
+# TODO: Re-enable once GO_RELEASER_GITHUB_TOKEN has access to Infisical/homebrew-get-cli
+# brews:
+#   - repository:
+#       owner: Infisical
+#       name: homebrew-get-cli
+#       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+#     directory: Formula
+#     homepage: "https://github.com/Infisical/agent-vault"
+#     description: "Open-source credential broker for AI agents"
+#     license: "MIT"
+#     install: |
+#       bin.install "agent-vault"
+#     test: |
+#       system "#{bin}/agent-vault", "version"
 
 release:
   github:
