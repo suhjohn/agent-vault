@@ -41,15 +41,9 @@ description: "Deploy Agent Vault to Fly.io with persistent storage"
   </Step>
 
   <Step title="Deploy">
-    <CodeGroup>
-    ```bash Make
-    make deploy
-    ```
-
-    ```bash Fly CLI
+    ```bash
     fly deploy
     ```
-    </CodeGroup>
   </Step>
 
   <Step title="Register the owner">
@@ -94,6 +88,3 @@ fly secrets set AGENT_VAULT_SMTP_FROM=you@gmail.com
   To verify SMTP is working, run `agent-vault email test` -- it sends a test email to the owner's address.
 </Tip>
 
-<Tip>
-  Use `make deploy` as a shortcut for `fly deploy`.
-</Tip>

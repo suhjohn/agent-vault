@@ -115,5 +115,4 @@ make test       # Run tests
 make web-dev    # Vite dev server with hot reload (port 5173)
 make dev        # Go + Vite dev servers with hot reload
 make docker     # Build Docker image
-make deploy     # Deploy to Fly.io
 ```
