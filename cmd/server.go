@@ -106,13 +106,19 @@ var serverCmd = &cobra.Command{
 // attachMITMIfEnabled initializes the CA and attaches a transparent MITM
 // proxy to srv when mitmPort > 0. The CA is loaded or created under the
 // standard ~/.agent-vault/ca/ directory, encrypted with the master key.
+//
+// CA init failures are non-fatal, matching the behavior for bind failures
+// in server.Start: since the MITM proxy is default-on, environments that
+// cannot create ~/.agent-vault/ca/ (read-only FS, containers without HOME,
+// corrupted state) must still be able to run the core HTTP server.
 func attachMITMIfEnabled(srv *server.Server, host string, mitmPort int, masterKey []byte) error {
 	if mitmPort <= 0 {
 		return nil
 	}
 	caProv, err := ca.New(masterKey, ca.Options{})
 	if err != nil {
-		return fmt.Errorf("init CA: %w", err)
+		fmt.Fprintf(os.Stderr, "warning: transparent proxy disabled (CA init failed: %v); pass --mitm-port 0 to suppress\n", err)
+		return nil
 	}
 	srv.AttachMITM(mitm.New(
 		net.JoinHostPort(host, strconv.Itoa(mitmPort)),
@@ -372,10 +378,7 @@ func spawnDetached(cmd *cobra.Command, masterKey *auth.MasterKey, initialized bo
 		return fmt.Errorf("opening log file: %w", err)
 	}
 
-	childArgs := []string{"server", "--port", strconv.Itoa(port), "--host", host}
-	if mitmPort > 0 {
-		childArgs = append(childArgs, "--mitm-port", strconv.Itoa(mitmPort))
-	}
+	childArgs := []string{"server", "--port", strconv.Itoa(port), "--host", host, "--mitm-port", strconv.Itoa(mitmPort)}
 	child := exec.Command(exe, childArgs...)
 	child.Stdin = pr
 	child.Stdout = logFile
@@ -507,7 +510,7 @@ func init() {
 	serverCmd.Flags().String("host", DefaultHost, "host to bind to")
 	serverCmd.Flags().BoolP("detach", "d", false, "run server in background after unlocking")
 	serverCmd.Flags().Bool("password-stdin", false, "read master password from stdin (for non-interactive use)")
-	serverCmd.Flags().Int("mitm-port", 0, "enable transparent MITM proxy on this port (0 = disabled)")
+	serverCmd.Flags().Int("mitm-port", DefaultMITMPort, "port for the transparent MITM proxy (0 = disabled)")
 	serverCmd.AddCommand(stopCmd)
 	rootCmd.AddCommand(serverCmd)
 }
