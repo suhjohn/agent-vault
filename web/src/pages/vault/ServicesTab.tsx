@@ -24,6 +24,7 @@ const AUTH_TYPE_OPTIONS: { value: string; label: string }[] = [
   { value: "basic", label: "HTTP Basic Auth" },
   { value: "api-key", label: "API key" },
   { value: "custom", label: "Custom headers" },
+  { value: "passthrough", label: "Passthrough" },
 ];
 
 export default function ServicesTab() {
@@ -288,6 +289,8 @@ function ServiceModal({
         return !!apiKey.trim();
       case "custom":
         return customHeaders.length > 0 && customHeaders.every((h) => h.name.trim() && h.value.trim());
+      case "passthrough":
+        return true;
       default:
         return false;
     }
@@ -315,6 +318,8 @@ function ServiceModal({
         }
         return { type: "custom", headers };
       }
+      case "passthrough":
+        return { type: "passthrough" };
       default:
         return { type: authType };
     }
@@ -469,6 +474,17 @@ function ServiceModal({
               />
             </FormField>
           </>
+        )}
+
+        {authType === "passthrough" && (
+          <div className="rounded-lg border border-border bg-bg p-3 text-sm text-text-muted leading-relaxed">
+            Passthrough forwards your client's request headers unchanged to
+            the target. Agent Vault will not look up or inject a credential,
+            and will strip only hop-by-hop headers and broker-scoped headers
+            (<span className="font-mono">X-Vault</span>,{" "}
+            <span className="font-mono">Proxy-Authorization</span>). Use this
+            when the agent already holds the credential.
+          </div>
         )}
 
         {authType === "custom" && (
