@@ -1,39 +1,8 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect } from "vitest";
 import { AgentVault } from "../src/client.js";
 import { buildProxyEnv } from "../src/resources/sessions.js";
 import type { ContainerConfig } from "../src/resources/sessions.js";
-
-/** Create a mock fetch that routes by URL path. */
-function createRoutedMockFetch(routes: Record<string, {
-  ok?: boolean;
-  status?: number;
-  body?: unknown;
-  headers?: Record<string, string>;
-}>) {
-  return vi.fn<typeof globalThis.fetch>().mockImplementation(async (input) => {
-    const url = typeof input === "string" ? input : (input as Request).url;
-    for (const [pattern, response] of Object.entries(routes)) {
-      if (url.includes(pattern)) {
-        const ok = response.ok ?? true;
-        const status = response.status ?? (ok ? 200 : 400);
-        const bodyText = typeof response.body === "string"
-          ? response.body
-          : JSON.stringify(response.body ?? {});
-        return {
-          ok,
-          status,
-          statusText: ok ? "OK" : "Bad Request",
-          headers: new Headers(response.headers),
-          json: () => Promise.resolve(response.body ?? {}),
-          text: () => Promise.resolve(bodyText),
-          arrayBuffer: () => Promise.resolve(new TextEncoder().encode(bodyText).buffer),
-          body: null,
-        } as Response;
-      }
-    }
-    throw new Error(`Unexpected URL: ${url}`);
-  });
-}
+import { createRoutedMockFetch } from "./helpers.js";
 
 const FAKE_PEM = "-----BEGIN CERTIFICATE-----\nFAKECERT\n-----END CERTIFICATE-----\n";
 
@@ -239,6 +208,7 @@ describe("buildProxyEnv()", () => {
 
     expect(env.HTTPS_PROXY).toBe("http://tok:vault@127.0.0.1:14322");
     expect(env.NO_PROXY).toBe("localhost,127.0.0.1");
+    expect(env.NODE_USE_ENV_PROXY).toBe("1");
     expect(env.SSL_CERT_FILE).toBe("/etc/ssl/agent-vault-ca.pem");
     expect(env.NODE_EXTRA_CA_CERTS).toBe("/etc/ssl/agent-vault-ca.pem");
     expect(env.REQUESTS_CA_BUNDLE).toBe("/etc/ssl/agent-vault-ca.pem");
