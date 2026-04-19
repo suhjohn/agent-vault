@@ -1,10 +1,15 @@
 // Package mitm implements a transparent TLS-intercepting HTTP proxy.
 //
-// A Proxy accepts HTTP CONNECT on a plain TCP listener, hijacks the
+// A Proxy accepts HTTP CONNECT on a TLS-encrypted listener, hijacks the
 // connection, terminates client-side TLS using a certificate minted on
 // demand by a ca.Provider, and forwards each HTTP/1.1 request to the
 // originally-requested upstream over a fresh TLS connection with strict
 // verification against the system trust store.
+//
+// The listener itself is TLS-wrapped so that the CONNECT handshake
+// (which carries session tokens in Proxy-Authorization) is encrypted.
+// Clients use HTTPS_PROXY=https://... and trust the same CA that signs
+// the per-host MITM leaves.
 //
 // v1 scope: HTTP/1.1 only (ALPN pinned).
 package mitm
@@ -31,6 +36,7 @@ type Proxy struct {
 	sessions    brokercore.SessionResolver
 	creds       brokercore.CredentialProvider
 	httpServer  *http.Server
+	tlsConfig   *tls.Config
 	upstream    *http.Transport
 	isListening atomic.Bool
 	baseURL     string // externally-reachable control-plane URL for help links
@@ -61,6 +67,25 @@ func New(addr string, caProv ca.Provider, sessions brokercore.SessionResolver, c
 		upstream: upstream,
 		baseURL:  baseURL,
 		logger:   logger,
+	}
+
+	p.tlsConfig = &tls.Config{
+		MinVersion: tls.VersionTLS12,
+		GetCertificate: func(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
+			sni := hello.ServerName
+			if sni == "" {
+				// No SNI (IP-literal connection per RFC 6066). Use the
+				// actual local address the client connected to so the
+				// cert SAN matches regardless of IPv4/IPv6 or which
+				// interface was used on a wildcard bind.
+				if host, _, err := net.SplitHostPort(hello.Conn.LocalAddr().String()); err == nil && host != "" {
+					sni = host
+				} else {
+					sni = "127.0.0.1"
+				}
+			}
+			return caProv.MintLeaf(sni)
+		},
 	}
 
 	p.httpServer = &http.Server{
@@ -98,13 +123,14 @@ func (p *Proxy) ListenAndServe() error {
 	return p.Serve(l)
 }
 
-// Serve accepts connections on the provided listener. It blocks until
-// Shutdown is called, returning http.ErrServerClosed in that case.
+// Serve accepts connections on the provided listener, wrapping it in
+// TLS so the CONNECT handshake is encrypted. It blocks until Shutdown
+// is called, returning http.ErrServerClosed in that case.
 // Useful for tests that need to bind :0 and learn the resulting port.
 func (p *Proxy) Serve(l net.Listener) error {
 	p.isListening.Store(true)
 	defer p.isListening.Store(false)
-	return p.httpServer.Serve(l)
+	return p.httpServer.Serve(tls.NewListener(l, p.tlsConfig))
 }
 
 // Shutdown gracefully stops the listener. In-flight CONNECT tunnels are
