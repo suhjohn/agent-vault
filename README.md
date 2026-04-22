@@ -2,7 +2,7 @@
   <img src="assets/banner.png" alt="Agent Vault" />
 </p>
 
-<p align="center"><strong>Authenticated HTTP Proxy and Vault for AI Agents</strong></p>
+<p align="center"><strong>HTTP credential proxy and vault</strong></p>
 
 <p align="center">
 An open-source credential broker by <a href="https://infisical.com">Infisical</a> that sits between your agents and the APIs they call.<br>
@@ -13,13 +13,17 @@ Agents should not possess credentials. Agent Vault eliminates credential exfiltr
 <a href="https://docs.agent-vault.dev">Documentation</a> | <a href="https://docs.agent-vault.dev/installation">Installation</a> | <a href="https://docs.agent-vault.dev/reference/cli">CLI Reference</a> | <a href="https://infisical.com/slack">Slack</a>
 </p>
 
+<p align="center">
+  <img src="assets/agent-vault.gif" alt="Agent Vault demo" />
+</p>
+
 ## Why Agent Vault
 
 Secret managers return credentials directly to the caller. This breaks down with AI agents, which are non-deterministic systems vulnerable to prompt injection that can be tricked into exfiltrating secrets.
 
 Agent Vault takes a different approach: **Agent Vault never reveals vault-stored credentials to agents**. Instead, agents route HTTP requests through a local proxy that injects the right credentials at the network layer.
 
-- **Brokered access, not retrieval** - Your agent gets a token and a proxy URL. It sends requests to `proxy/{host}/{path}` and Agent Vault authenticates them. Credentials stored in the vault are never returned to the agent. [Learn more](https://docs.agent-vault.dev/learn/security)
+- **Brokered access, not retrieval** - Your agent gets a scoped session and a local `HTTPS_PROXY`. It calls target APIs normally (e.g. `fetch("https://api.github.com/...")`), and Agent Vault transparently intercepts the request and injects the right credential at the network layer. Credentials stored in the vault are never returned to the agent. [Learn more](https://docs.agent-vault.dev/learn/security)
 - **Works with any agent** - Custom Python/TypeScript agents, sandboxed processes, coding agents (Claude Code, Cursor, Codex), anything that can make HTTP requests. [Learn more](https://docs.agent-vault.dev/quickstart)
 - **Self-service access** - Agents discover available services at runtime and [propose access](https://docs.agent-vault.dev/learn/proposals) for anything missing. You review and approve in your browser with one click. Any service can be toggled on/off without losing its configuration — disabled services return `403 service_disabled` until re-enabled.
 - **Encrypted at rest** - Credentials are encrypted with AES-256-GCM using a random data encryption key (DEK). An optional master password wraps the DEK via Argon2id — change the password without re-encrypting credentials. Passwordless mode available for PaaS deploys. [Learn more](https://docs.agent-vault.dev/learn/credentials)
