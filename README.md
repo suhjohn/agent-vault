@@ -81,6 +81,9 @@ Wrap any local agent process with `agent-vault run` (long form: `agent-vault vau
 
 ```bash
 agent-vault run -- claude
+agent-vault vault run -- agent
+agent-vault vault run -- codex
+agent-vault vault run -- opencode
 ```
 
 The agent calls APIs normally (e.g. `fetch("https://api.github.com/...")`). Agent Vault intercepts the request, injects the credential, and forwards it upstream. The agent never sees secrets.
