@@ -4,7 +4,7 @@ import (
 	"bufio"
 	"context"
 	"crypto/rand"
-	"crypto/sha1"
+	"crypto/sha1" //nolint:gosec // RFC 6455 WebSocket handshake requires SHA-1
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
@@ -365,6 +365,7 @@ func TestMITMWebSocketInjectsCredentialsAndPipesFrames(t *testing.T) {
 	if resp.StatusCode != http.StatusSwitchingProtocols {
 		t.Fatalf("status = %d, want 101", resp.StatusCode)
 	}
+	defer func() { _ = resp.Body.Close() }()
 	if got := strings.Join(resp.Header.Values("Connection"), ","); strings.Contains(strings.ToLower(got), "close") {
 		t.Fatalf("client Connection header = %q, must not include close", got)
 	}
@@ -1064,7 +1065,7 @@ func openMITMTunnel(t *testing.T, proxyURL *url.URL, roots *x509.CertPool, targe
 }
 
 func websocketAccept(key string) string {
-	sum := sha1.Sum([]byte(key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"))
+	sum := sha1.Sum([]byte(key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11")) //nolint:gosec // RFC 6455 mandates SHA-1 for the accept-key
 	return base64.StdEncoding.EncodeToString(sum[:])
 }
 
@@ -1104,13 +1105,14 @@ func readWebSocketTextFrame(r io.Reader) (string, error) {
 
 	masked := header[1]&0x80 != 0
 	length := int(header[1] & 0x7f)
-	if length == 126 {
+	switch length {
+	case 126:
 		extended := make([]byte, 2)
 		if _, err := io.ReadFull(r, extended); err != nil {
 			return "", err
 		}
 		length = int(extended[0])<<8 | int(extended[1])
-	} else if length == 127 {
+	case 127:
 		return "", fmt.Errorf("large websocket frames are not supported by test helper")
 	}
 
