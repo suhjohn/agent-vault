@@ -103,6 +103,8 @@ func (p *Proxy) dialWebSocketUpstream(
 			tlsConfig.ServerName = outReq.URL.Hostname()
 		}
 	}
+	// WebSocket requires HTTP/1.1; pin ALPN so the server can't pick h2.
+	tlsConfig.NextProtos = []string{"http/1.1"}
 
 	tlsConn := tls.Client(rawConn, tlsConfig)
 	_ = tlsConn.SetDeadline(time.Now().Add(p.tlsHandshakeTimeout()))

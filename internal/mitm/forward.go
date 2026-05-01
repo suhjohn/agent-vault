@@ -105,18 +105,19 @@ func (p *Proxy) forwardHandler(target, host string, scope *brokercore.ProxyScope
 		}
 
 		wsUpgrade := isWebSocketUpgrade(r)
+
+		// WS handshake needs Connection/Upgrade through, but ApplyInjection
+		// would drop them as hop-by-hop. Copy the full handshake set
+		// manually, then tell ApplyInjection to skip them so the
+		// non-hop-by-hop ones (Origin, Sec-*) aren't duplicated. Injection
+		// still wins on overlapping names (Authorization etc.) because
+		// inject.Headers is Set last by ApplyInjection.
 		if wsUpgrade {
 			copyWebSocketHandshakeHeaders(r.Header, outReq.Header)
-		}
-
-		// No extraStrip: Proxy-Authorization (the broker-scoped credential
-		// on this ingress) is already filtered by the denylist, and
-		// Authorization is the client's own upstream header. For WebSocket
-		// requests, copy the handshake headers first so injected custom auth
-		// on overlapping headers still wins.
-		if wsUpgrade {
-			brokercore.ApplyInjection(r.Header, outReq.Header, inject, websocketHandshakeHeaderNames()...)
+			brokercore.ApplyInjection(r.Header, outReq.Header, inject, websocketHandshakeHeaderNames...)
 		} else {
+			// No extraStrip: Proxy-Authorization is already in the broker
+			// denylist, and Authorization is the client's upstream header.
 			brokercore.ApplyInjection(r.Header, outReq.Header, inject)
 		}
 
@@ -178,7 +179,7 @@ func isWebSocketUpgrade(r *http.Request) bool {
 }
 
 func copyWebSocketHandshakeHeaders(src, dst http.Header) {
-	for _, name := range websocketHandshakeHeaderNames() {
+	for _, name := range websocketHandshakeHeaderNames {
 		dst.Del(name)
 		for _, value := range src.Values(name) {
 			dst.Add(name, value)
@@ -186,14 +187,12 @@ func copyWebSocketHandshakeHeaders(src, dst http.Header) {
 	}
 }
 
-func websocketHandshakeHeaderNames() []string {
-	return []string{
-		"Connection",
-		"Origin",
-		"Sec-Websocket-Extensions",
-		"Sec-Websocket-Key",
-		"Sec-Websocket-Protocol",
-		"Sec-Websocket-Version",
-		"Upgrade",
-	}
+var websocketHandshakeHeaderNames = []string{
+	"Connection",
+	"Origin",
+	"Sec-Websocket-Extensions",
+	"Sec-Websocket-Key",
+	"Sec-Websocket-Protocol",
+	"Sec-Websocket-Version",
+	"Upgrade",
 }
