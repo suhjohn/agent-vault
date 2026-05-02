@@ -66,16 +66,25 @@ func (p *Proxy) forwardWebSocket(
 		return
 	}
 
+	_ = clientConn.SetWriteDeadline(time.Now().Add(10 * time.Second))
 	if err := writeWebSocketSwitchingResponse(clientConn, resp); err != nil {
 		_ = clientConn.Close()
 		_ = upstreamConn.Close()
 		emit(http.StatusBadGateway, "upstream_error")
 		return
 	}
+	_ = clientConn.SetWriteDeadline(time.Time{})
 	emit(http.StatusSwitchingProtocols, "")
 
 	pipeWebSocket(clientConn, clientBuf.Reader, upstreamConn, upstreamReader)
 }
+
+// wsIdleTimeout bounds how long a WebSocket leg can sit silent before the
+// proxy tears down both sides. Real-time APIs (audio, model streams) emit
+// frames far more frequently; legitimate keepalive pings sit well inside
+// this window. Without it, a stalled or abandoned connection would pin a
+// goroutine pair and a TLS connection indefinitely.
+const wsIdleTimeout = 10 * time.Minute
 
 func (p *Proxy) dialWebSocketUpstream(
 	ctx context.Context,
@@ -210,16 +219,37 @@ func pipeWebSocket(clientConn net.Conn, clientReader *bufio.Reader, upstreamConn
 			done <- struct{}{}
 			closeBoth()
 		}()
-		_, _ = io.Copy(upstreamConn, io.MultiReader(clientReader, clientConn))
+		copyWithIdleTimeout(upstreamConn, io.MultiReader(clientReader, clientConn), clientConn, wsIdleTimeout)
 	}()
 	go func() {
 		defer func() {
 			done <- struct{}{}
 			closeBoth()
 		}()
-		_, _ = io.Copy(clientConn, io.MultiReader(upstreamReader, upstreamConn))
+		copyWithIdleTimeout(clientConn, io.MultiReader(upstreamReader, upstreamConn), upstreamConn, wsIdleTimeout)
 	}()
 
 	<-done
 	<-done
+}
+
+// copyWithIdleTimeout streams src→dst, refreshing srcConn's read deadline
+// on each iteration so a silent connection trips the deadline rather than
+// blocking forever. srcConn must be the underlying net.Conn that src
+// reads from (directly or via a bufio.Reader); the deadline only applies
+// to actual socket reads, not to bytes already buffered.
+func copyWithIdleTimeout(dst io.Writer, src io.Reader, srcConn net.Conn, idle time.Duration) {
+	buf := make([]byte, 32*1024)
+	for {
+		_ = srcConn.SetReadDeadline(time.Now().Add(idle))
+		n, err := src.Read(buf)
+		if n > 0 {
+			if _, werr := dst.Write(buf[:n]); werr != nil {
+				return
+			}
+		}
+		if err != nil {
+			return
+		}
+	}
 }
