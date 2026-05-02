@@ -72,8 +72,14 @@ func (p *Proxy) forwardHandler(target, host string, scope *brokercore.ProxyScope
 
 		body, contentLength, err := brokercore.MaterializeRequestBody(r.Body)
 		if err != nil {
-			http.Error(w, "request body too large", http.StatusRequestEntityTooLarge)
-			emit(http.StatusRequestEntityTooLarge, "request_too_large")
+			var maxBytesErr *http.MaxBytesError
+			if errors.As(err, &maxBytesErr) {
+				http.Error(w, "request body too large", http.StatusRequestEntityTooLarge)
+				emit(http.StatusRequestEntityTooLarge, "request_too_large")
+				return
+			}
+			http.Error(w, "bad request", http.StatusBadRequest)
+			emit(http.StatusBadRequest, "request_read_error")
 			return
 		}
 

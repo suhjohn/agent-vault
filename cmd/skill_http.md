@@ -75,6 +75,20 @@ GET https://api.github.com/user
 
 Your code can leave the upstream auth header blank or set it to a placeholder — Agent Vault attaches the real credential at the proxy boundary, so the value in your env can be anything (or absent). Standard HTTP clients (curl, fetch, requests, axios, the Go stdlib, etc.) honor `HTTPS_PROXY` automatically.
 
+### WebSocket / Streaming
+
+`wss://` URLs are brokered through the same `HTTPS_PROXY` mechanism as regular HTTPS. Credentials are injected into the WebSocket handshake (`Authorization`, `Sec-WebSocket-Protocol`) the same way as on a normal request — point your client at the real `wss://` URL and Agent Vault attaches the real credential at the proxy boundary.
+
+```
+wss://api.openai.com/v1/realtime?model=gpt-realtime
+```
+
+Constraints:
+- HTTP/1.1 only at the MITM ingress today. HTTP/2 traffic is forwarded but not intercepted, so it bypasses credential injection — pin clients to HTTP/1.1 if you need brokered auth on a streaming endpoint.
+- Streaming HTTP responses (SSE, chunked) work transparently; no special handling needed.
+
+For a worked example of OpenAI Realtime over Agent Vault inside a locked-down container, see [`examples/daytona-openai-realtime`](https://github.com/Infisical/agent-vault/tree/main/examples/daytona-openai-realtime).
+
 ## Proposals -- Requesting and Storing Credentials
 
 Proposals are the primary way to exchange credentials with a human operator. Use them whenever you:

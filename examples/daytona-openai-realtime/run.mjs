@@ -238,8 +238,8 @@ try {
     command,
     undefined,
     {
-      AGENT_VAULT_REF: process.env.AGENT_VAULT_REF ?? "transparent-mitm-websocket",
-      AGENT_VAULT_REPO: process.env.AGENT_VAULT_REPO ?? "https://github.com/suhjohn/agent-vault.git",
+      AGENT_VAULT_REF: process.env.AGENT_VAULT_REF ?? "main",
+      AGENT_VAULT_REPO: process.env.AGENT_VAULT_REPO ?? "https://github.com/Infisical/agent-vault.git",
       OPENAI_API_KEY: process.env.OPENAI_API_KEY,
     },
     1800,
