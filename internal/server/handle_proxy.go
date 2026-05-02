@@ -220,14 +220,9 @@ func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
 	// 8. Build outbound request.
 	body, contentLength, err := brokercore.MaterializeRequestBody(r.Body)
 	if err != nil {
-		var maxBytesErr *http.MaxBytesError
-		if errors.As(err, &maxBytesErr) {
-			proxyError(w, http.StatusRequestEntityTooLarge, "request_too_large", "Request body too large")
-			emit(http.StatusRequestEntityTooLarge, "request_too_large")
-			return
-		}
-		proxyError(w, http.StatusBadRequest, "request_read_error", "Failed to read request body")
-		emit(http.StatusBadRequest, "request_read_error")
+		status, code := brokercore.RequestBodyErrorCode(err)
+		proxyError(w, status, code, http.StatusText(status))
+		emit(status, code)
 		return
 	}
 	outReq, err := http.NewRequestWithContext(ctx, r.Method, targetURL, body)

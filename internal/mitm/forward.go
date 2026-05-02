@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
-	"strings"
 	"time"
 
 	"github.com/Infisical/agent-vault/internal/brokercore"
@@ -72,14 +71,9 @@ func (p *Proxy) forwardHandler(target, host string, scope *brokercore.ProxyScope
 
 		body, contentLength, err := brokercore.MaterializeRequestBody(r.Body)
 		if err != nil {
-			var maxBytesErr *http.MaxBytesError
-			if errors.As(err, &maxBytesErr) {
-				http.Error(w, "request body too large", http.StatusRequestEntityTooLarge)
-				emit(http.StatusRequestEntityTooLarge, "request_too_large")
-				return
-			}
-			http.Error(w, "bad request", http.StatusBadRequest)
-			emit(http.StatusBadRequest, "request_read_error")
+			status, code := brokercore.RequestBodyErrorCode(err)
+			http.Error(w, http.StatusText(status), status)
+			emit(status, code)
 			return
 		}
 
@@ -168,37 +162,4 @@ func (p *Proxy) forwardHandler(target, host string, scope *brokercore.ProxyScope
 		_, _ = io.Copy(w, io.LimitReader(resp.Body, brokercore.MaxResponseBytes))
 		emit(resp.StatusCode, "")
 	})
-}
-
-func isWebSocketUpgrade(r *http.Request) bool {
-	if !strings.EqualFold(r.Header.Get("Upgrade"), "websocket") {
-		return false
-	}
-	for _, header := range r.Header.Values("Connection") {
-		for _, token := range strings.Split(header, ",") {
-			if strings.EqualFold(strings.TrimSpace(token), "upgrade") {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-func copyWebSocketHandshakeHeaders(src, dst http.Header) {
-	for _, name := range websocketHandshakeHeaderNames {
-		dst.Del(name)
-		for _, value := range src.Values(name) {
-			dst.Add(name, value)
-		}
-	}
-}
-
-var websocketHandshakeHeaderNames = []string{
-	"Connection",
-	"Origin",
-	"Sec-Websocket-Extensions",
-	"Sec-Websocket-Key",
-	"Sec-Websocket-Protocol",
-	"Sec-Websocket-Version",
-	"Upgrade",
 }

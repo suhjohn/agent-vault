@@ -16,6 +16,38 @@ import (
 	"github.com/Infisical/agent-vault/internal/brokercore"
 )
 
+func isWebSocketUpgrade(r *http.Request) bool {
+	if !strings.EqualFold(r.Header.Get("Upgrade"), "websocket") {
+		return false
+	}
+	for _, header := range r.Header.Values("Connection") {
+		for _, token := range strings.Split(header, ",") {
+			if strings.EqualFold(strings.TrimSpace(token), "upgrade") {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func copyWebSocketHandshakeHeaders(src, dst http.Header) {
+	for _, name := range websocketHandshakeHeaderNames {
+		for _, value := range src.Values(name) {
+			dst.Add(name, value)
+		}
+	}
+}
+
+var websocketHandshakeHeaderNames = []string{
+	"Connection",
+	"Origin",
+	"Sec-Websocket-Extensions",
+	"Sec-Websocket-Key",
+	"Sec-Websocket-Protocol",
+	"Sec-Websocket-Version",
+	"Upgrade",
+}
+
 func (p *Proxy) forwardWebSocket(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -79,11 +111,9 @@ func (p *Proxy) forwardWebSocket(
 	pipeWebSocket(clientConn, clientBuf.Reader, upstreamConn, upstreamReader)
 }
 
-// wsIdleTimeout bounds how long a WebSocket leg can sit silent before the
-// proxy tears down both sides. Real-time APIs (audio, model streams) emit
-// frames far more frequently; legitimate keepalive pings sit well inside
-// this window. Without it, a stalled or abandoned connection would pin a
-// goroutine pair and a TLS connection indefinitely.
+// Without an idle deadline, a stalled or abandoned WebSocket would pin a
+// goroutine pair and a TLS connection indefinitely. Real-time APIs and
+// keepalive pings comfortably fit inside this window.
 const wsIdleTimeout = 10 * time.Minute
 
 func (p *Proxy) dialWebSocketUpstream(

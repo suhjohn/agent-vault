@@ -2,6 +2,7 @@ package brokercore
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"net/http"
 )
@@ -27,4 +28,15 @@ func MaterializeRequestBody(body io.ReadCloser) (io.ReadCloser, int64, error) {
 		return http.NoBody, 0, nil
 	}
 	return io.NopCloser(bytes.NewReader(data)), int64(len(data)), nil
+}
+
+// RequestBodyErrorCode maps a MaterializeRequestBody error to the proxy
+// status + error_code pair: *http.MaxBytesError → 413/request_too_large,
+// any other read failure → 400/request_read_error.
+func RequestBodyErrorCode(err error) (status int, code string) {
+	var maxBytesErr *http.MaxBytesError
+	if errors.As(err, &maxBytesErr) {
+		return http.StatusRequestEntityTooLarge, "request_too_large"
+	}
+	return http.StatusBadRequest, "request_read_error"
 }
